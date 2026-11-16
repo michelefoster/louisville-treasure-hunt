@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#122A32">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="History Hunt">
+<title>Louisville Black History Treasure Hunt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    --paper:#EDE4D2; --paper-dim:#E2D6BE; --card:#F5EEDF;
+    --ink:#211C14; --ink-soft:#4A4234;
+    --river:#1B3B45; --river-deep:#122A32;
+    --bronze:#8A6D3B; --bronze-light:#C9A15C;
+    --plaque:#26210B; --plaque-edge:#3C3418;
+    --good:#4B6B4E; --line:rgba(33,28,20,0.14);
+    --mono:'JetBrains Mono', ui-monospace, monospace;
+    --serif:'Fraunces', Georgia, serif;
+    --sans:'Inter', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{font-family:var(--sans); background:#0e1517; color:var(--ink); -webkit-text-size-adjust:100%;}
+  button{font:inherit; color:inherit;}
+
+  .app{
+    height:100vh; height:100dvh; max-width:520px; margin:0 auto;
+    background:var(--paper); display:flex; flex-direction:column; position:relative; overflow:hidden;
+  }
+  .screen{flex:1; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch;}
+  .hidden{display:none !important;}
+
+  /* ---------- HOME ---------- */
+  .home{
+    min-height:100%;
+    background:linear-gradient(180deg, var(--river-deep) 0, var(--river) 330px, var(--paper) 330px);
+    padding-top:calc(34px + env(safe-area-inset-top));
+    display:flex; flex-direction:column; align-items:center; text-align:center;
+  }
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--bronze-light); margin-bottom:12px;}
+  .home h1{font-family:var(--serif); font-weight:700; font-size:36px; line-height:1; color:#F4EFE2; letter-spacing:-0.01em; padding:0 20px;}
+  .home .sub{font-family:var(--serif); font-style:italic; font-size:15px; color:#C9D8D6; margin-top:12px;}
+  .marker-badge{
+    margin-top:24px; width:170px; height:170px; border-radius:50%; flex-shrink:0;
+    background:radial-gradient(circle at 35% 30%, var(--bronze-light), var(--bronze) 60%, #6b5228 100%);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative;
+    box-shadow:0 14px 30px rgba(0,0,0,.4), inset 0 2px 4px rgba(255,255,255,.35), inset 0 -6px 10px rgba(0,0,0,.35);
+    border:3px solid #4a3a1c;
+  }
+  .marker-badge::before{content:""; position:absolute; inset:12px; border-radius:50%; border:1.5px solid rgba(38,33,11,.5);}
+  .marker-badge .count{font-family:var(--serif); font-weight:700; font-size:44px; color:var(--plaque); line-height:1;}
+  .marker-badge .of{font-family:var(--mono); font-size:10px; letter-spacing:.1em; color:#3a2f16; margin-top:6px;}
+  .home-body{padding:28px 24px 30px; width:100%;}
+  .home-desc{font-size:14.5px; line-height:1.6; color:var(--ink-soft); text-align:left;}
+  .home-desc b{color:var(--ink);}
+  .privacy{margin-top:14px; font-size:12.5px; line-height:1.55; color:var(--ink-soft); text-align:left; border-left:3px solid var(--bronze-light); padding-left:10px;}
+  .start-btn{
+    margin-top:22px; width:100%; background:var(--plaque); color:var(--bronze-light);
+    font-family:var(--mono); font-size:13px; letter-spacing:.12em; text-transform:uppercase;
+    padding:17px 0; border:none; border-radius:6px; cursor:pointer;
+    box-shadow:0 6px 0 var(--plaque-edge), 0 10px 18px rgba(0,0,0,.3); transition:transform .08s ease;
+  }
+  .start-btn:active{transform:translateY(4px); box-shadow:0 2px 0 var(--plaque-edge);}
+  .ghost-btn{margin-top:16px; width:100%; background:none; border:1px solid var(--line); border-radius:6px; padding:13px 0; font-family:var(--mono); font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--river); cursor:pointer;}
+
+  /* ---------- LIST ---------- */
+  .list-wrap{padding:calc(20px + env(safe-area-inset-top)) 18px 30px;}
+  .list-header{display:flex; align-items:baseline; justify-content:space-between;}
+  .list-header h2{font-family:var(--serif); font-size:26px; font-weight:700;}
+  .prog{font-family:var(--mono); font-size:12px; color:var(--bronze);}
+  .progress-bar{height:5px; background:var(--paper-dim); border-radius:4px; overflow:hidden; margin:12px 0 20px;}
+  .progress-bar .fill{height:100%; background:linear-gradient(90deg, var(--bronze), var(--bronze-light)); transition:width .4s ease;}
+  .stop-card{
+    display:flex; align-items:center; gap:14px; width:100%; text-align:left;
+    background:var(--card); border:1px solid var(--line); border-radius:10px;
+    padding:13px 14px; margin-bottom:10px; cursor:pointer; transition:transform .08s ease;
+  }
+  .stop-card:active{transform:scale(.98);}
+  .stop-card.done{background:#EAF0E7; border-color:rgba(75,107,78,.35);}
+  .stop-num{font-family:var(--mono); font-size:12px; font-weight:600; width:34px; height:34px; flex-shrink:0; border-radius:50%; background:var(--river); color:#F4EFE2; display:flex; align-items:center; justify-content:center;}
+  .stop-card.done .stop-num{background:var(--good);}
+  .stop-info{flex:1; min-width:0;}
+  .stop-cat{font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--bronze); margin-bottom:2px;}
+  .stop-title{font-family:var(--serif); font-weight:600; font-size:15.5px; line-height:1.25;}
+  .stop-meta{font-size:11.5px; color:var(--ink-soft); margin-top:3px;}
+  .stop-arrow{color:var(--ink-soft); font-size:18px; opacity:.5;}
+
+  /* ---------- DETAIL ---------- */
+  .detail-hero{background:linear-gradient(160deg, var(--river-deep), var(--river)); padding:calc(14px + env(safe-area-inset-top)) 20px 24px;}
+  .back-btn{background:none; border:none; color:#DCE7E4; font-size:14px; cursor:pointer; padding:8px 0; margin-bottom:10px;}
+  .detail-cat{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--bronze-light); margin-bottom:8px;}
+  .detail-title{font-family:var(--serif); font-weight:700; font-size:24px; color:#F4EFE2; line-height:1.15;}
+  .detail-plate{display:inline-block; margin-top:12px; font-family:var(--mono); font-size:11px; color:var(--river-deep); background:var(--bronze-light); padding:3px 10px; border-radius:20px;}
+  .detail-body{padding:22px 20px 30px;}
+  .block-label{font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--bronze); margin:22px 0 8px;}
+  .block-label:first-child{margin-top:0;}
+  .clue-text{font-family:var(--serif); font-size:16px; line-height:1.6;}
+  .place{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:8px;}
+  .place-name{font-family:var(--serif); font-weight:600; font-size:15px;}
+  .place-addr{font-size:12.5px; color:var(--ink-soft); margin-top:2px; line-height:1.45;}
+  .place-actions{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+  .chip{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--river); color:var(--river); background:none; border-radius:20px; padding:7px 13px; font-size:12.5px; font-weight:600; cursor:pointer; text-decoration:none;}
+  .chip.solid{background:var(--river); color:#F4EFE2;}
+  .no-place{font-size:13.5px; line-height:1.55; color:var(--ink-soft);}
+  .listen-btn{display:inline-flex; align-items:center; gap:7px; margin:12px 0 0 8px; background:none; border:1px solid rgba(201,161,92,.6); color:var(--bronze-light); border-radius:20px; padding:4px 12px; font-family:var(--mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; cursor:pointer; vertical-align:top;}
+  .listen-btn.on{background:var(--bronze-light); color:var(--river-deep);}
+  .res-list{display:flex; flex-direction:column; gap:8px;}
+  .res-link{display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:11px 14px; color:var(--river); text-decoration:none; font-size:13.5px; font-weight:600; line-height:1.35;}
+  .res-link span:last-child{color:var(--bronze); flex-shrink:0;}
+  .res-note{font-size:12px; color:var(--ink-soft); margin-top:8px; line-height:1.5;}
+  .q-list{list-style:none;}
+  .q-list li{font-size:14px; line-height:1.55; color:var(--ink-soft); padding:10px 0 12px 26px; position:relative; border-bottom:1px solid var(--line);}
+  .q-list li:last-child{border-bottom:none;}
+  .q-list li::before{content:attr(data-n); position:absolute; left:0; top:10px; font-family:var(--mono); font-size:11px; color:var(--bronze);}
+  .answer-input{width:100%; margin-top:6px; border:1px solid var(--line); border-radius:6px; background:#F8F3E8; padding:9px 10px; font-family:var(--sans); font-size:16px; color:var(--ink); resize:vertical; min-height:42px;}
+  .answer-input:focus{outline:2px solid var(--bronze-light);}
+  .challenge-box{margin-top:22px; background:var(--plaque); color:#EDE4D2; border-radius:10px; padding:16px 16px 18px;}
+  .cb-label{font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--bronze-light); margin-bottom:8px;}
+  .challenge-box p{font-size:13.5px; line-height:1.6;}
+  .camera-chip{margin-top:12px; display:inline-flex; align-items:center; gap:8px; background:rgba(201,161,92,.15); border:1px solid rgba(201,161,92,.4); color:var(--bronze-light); font-size:13px; padding:8px 14px; border-radius:20px; cursor:pointer;}
+  .thumbs{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;}
+  .thumb{position:relative; width:78px; height:78px; border-radius:8px; overflow:hidden; border:1px solid rgba(201,161,92,.4);}
+  .thumb img{width:100%; height:100%; object-fit:cover; display:block;}
+  .thumb button{position:absolute; top:2px; right:2px; width:22px; height:22px; border-radius:50%; border:none; background:rgba(0,0,0,.65); color:#fff; font-size:13px; line-height:1; cursor:pointer;}
+  .complete-btn{margin-top:26px; width:100%; padding:16px 0; font-family:var(--mono); font-size:13px; letter-spacing:.1em; text-transform:uppercase; border:none; border-radius:6px; cursor:pointer; background:var(--good); color:#F4EFE2; box-shadow:0 6px 0 #35502f;}
+  .complete-btn:active{transform:translateY(4px); box-shadow:none;}
+  .complete-btn.undo{background:#7a6a4a; box-shadow:0 6px 0 #55492f;}
+
+  /* ---------- MAP ---------- */
+  .mapview{flex:1; position:relative; min-height:0; overflow:hidden;}
+  #map{position:absolute; inset:0; background:var(--paper-dim);}
+  .map-top{position:absolute; top:calc(10px + env(safe-area-inset-top)); left:10px; right:10px; z-index:500; display:flex; gap:8px; justify-content:space-between; pointer-events:none;}
+  .map-top > *{pointer-events:auto;}
+  .map-btn{background:var(--plaque); color:var(--bronze-light); border:none; border-radius:22px; padding:10px 15px; font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.3);}
+  .map-btn.on{background:var(--river); color:#F4EFE2;}
+  .map-msg{position:absolute; top:calc(58px + env(safe-area-inset-top)); left:10px; right:10px; z-index:500; background:#F8F3E8; border:1px solid var(--line); border-radius:8px; padding:9px 12px; font-size:12.5px; line-height:1.45; color:var(--ink-soft); box-shadow:0 4px 12px rgba(0,0,0,.18);}
+  .pin{width:32px; height:32px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); background:var(--river); border:2px solid var(--bronze-light); box-shadow:0 3px 6px rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center;}
+  .pin span{transform:rotate(45deg); color:#F4EFE2; font-family:var(--mono); font-size:10.5px; font-weight:600; white-space:nowrap;}
+  .pin.done{background:var(--good);}
+  .me{width:18px; height:18px; border-radius:50%; background:#2F7DE1; border:3px solid #fff; box-shadow:0 0 0 2px rgba(47,125,225,.35), 0 2px 5px rgba(0,0,0,.4);}
+  .leaflet-popup-content-wrapper{background:#F8F3E8; border-radius:10px; color:var(--ink);}
+  .leaflet-popup-tip{background:#F8F3E8;}
+  .leaflet-popup-content{margin:13px 14px; font-family:var(--sans); min-width:200px;}
+  .pop-name{font-family:var(--serif); font-weight:700; font-size:15.5px; line-height:1.25;}
+  .pop-addr{font-size:12px; color:var(--ink-soft); margin:3px 0 9px; line-height:1.4;}
+  .pop-stop{display:block; width:100%; text-align:left; background:var(--card); border:1px solid var(--line); border-radius:7px; padding:7px 9px; margin-bottom:6px; font-size:12.5px; cursor:pointer;}
+  .pop-stop b{font-family:var(--mono); font-size:10.5px; color:var(--bronze);}
+  .sheet{position:absolute; left:0; right:0; bottom:0; z-index:1100; background:var(--paper); border-radius:16px 16px 0 0; box-shadow:0 -8px 24px rgba(0,0,0,.3); padding:14px 16px 16px; max-height:62%; display:flex; flex-direction:column;}
+  .sheet-head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px;}
+  .sheet-title{font-family:var(--serif); font-weight:700; font-size:17px; line-height:1.2;}
+  .sheet-sub{font-size:12px; color:var(--ink-soft); margin-top:2px;}
+  .x-btn{background:var(--paper-dim); border:none; width:30px; height:30px; border-radius:50%; font-size:16px; cursor:pointer; flex-shrink:0;}
+  .modes{display:flex; gap:8px; margin:12px 0 10px;}
+  .mode{flex:1; padding:10px 0; border:1px solid var(--river); background:none; color:var(--river); border-radius:8px; font-weight:600; font-size:13.5px; cursor:pointer;}
+  .mode.on{background:var(--river); color:#F4EFE2;}
+  .route-sum{font-family:var(--mono); font-size:13px; color:var(--ink); margin-bottom:8px;}
+  .steps{overflow-y:auto; flex:1; min-height:0; list-style:none; border-top:1px solid var(--line);}
+  .steps li{font-size:13px; line-height:1.45; padding:8px 0; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; gap:12px;}
+  .steps li span:last-child{font-family:var(--mono); font-size:11px; color:var(--bronze); white-space:nowrap;}
+  .gmaps{display:block; text-align:center; margin-top:12px; background:var(--plaque); color:var(--bronze-light); text-decoration:none; padding:14px 0; border-radius:6px; font-family:var(--mono); font-size:12.5px; letter-spacing:.1em; text-transform:uppercase;}
+
+  /* ---------- HINTS, FILTERS, OUTINGS, JOURNAL, CERTIFICATE ---------- */
+  .hint{margin-top:8px;}
+  .hint summary{font-size:12.5px; font-weight:600; color:var(--river); cursor:pointer; list-style:none; display:inline-block; padding:4px 0;}
+  .hint summary::-webkit-details-marker{display:none;}
+  .hint summary::before{content:"💡 ";}
+  .hint p{font-size:13px; line-height:1.5; color:var(--ink); background:#F8F3E8; border-left:3px solid var(--bronze-light); padding:8px 10px; margin-top:4px; border-radius:0 6px 6px 0;}
+  .filters{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px;}
+  .filter{border:1px solid var(--river); background:none; color:var(--river); border-radius:20px; padding:9px 8px; font-size:12.5px; font-weight:600; cursor:pointer; text-align:center; line-height:1.2;}
+  .notice{font-size:13px; line-height:1.5; color:var(--ink); background:#F8F3E8; border:1px solid var(--line); border-left:4px solid var(--bronze-light); border-radius:8px; padding:10px 12px; margin-bottom:14px;}
+  .notice b{display:block; font-family:var(--mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--bronze); margin-bottom:3px;}
+  .notice.warn{border-left-color:#B5562E;} .notice.warn b{color:#B5562E;}
+  .filter.on{background:var(--river); color:#F4EFE2;}
+  .list-note{font-size:12.5px; line-height:1.5; color:var(--ink-soft); margin:-6px 0 14px;}
+  .outing{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px;}
+  .outing h3{font-family:var(--serif); font-size:19px; font-weight:700;}
+  .outing-sub{font-size:12.5px; color:var(--ink-soft); margin:3px 0 10px; line-height:1.45;}
+  .outing ol{list-style:none; counter-reset:o; border-top:1px solid var(--line);}
+  .outing li{counter-increment:o; padding:10px 0 10px 28px; position:relative; border-bottom:1px solid var(--line);}
+  .outing li::before{content:counter(o); position:absolute; left:0; top:11px; width:20px; height:20px; border-radius:50%; background:var(--bronze-light); color:var(--plaque); font-family:var(--mono); font-size:10.5px; font-weight:600; display:flex; align-items:center; justify-content:center;}
+  .o-name{font-family:var(--serif); font-weight:600; font-size:14.5px; line-height:1.3;}
+  .o-stops{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;}
+  .o-stop{border:1px solid var(--line); background:#F8F3E8; border-radius:14px; padding:4px 10px; font-size:11.5px; color:var(--ink); cursor:pointer;}
+  .o-stop.done{background:#EAF0E7; border-color:rgba(75,107,78,.35); color:var(--good);}
+  .outing .chip{margin-top:12px;}
+  .j-wrap{padding:calc(20px + env(safe-area-inset-top)) 20px 30px;}
+  .j-wrap h2{font-family:var(--serif); font-size:26px; font-weight:700;}
+  .j-sub{font-size:13px; color:var(--ink-soft); line-height:1.5; margin:6px 0 14px;}
+  .j-actions{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;}
+  .j-stop{border-top:1px solid var(--line); padding:16px 0 6px; break-inside:avoid;}
+  .j-stop h3{font-family:var(--serif); font-size:17px; font-weight:700; line-height:1.25;}
+  .j-tag{font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--bronze); margin-bottom:3px;}
+  .j-q{font-size:12.5px; color:var(--ink-soft); margin-top:10px; line-height:1.45;}
+  .j-a{font-family:var(--serif); font-size:15px; line-height:1.5; margin-top:2px; white-space:pre-wrap; overflow-wrap:anywhere;}
+  .j-a.blank{color:var(--ink-soft); font-style:italic; font-size:13px; opacity:.7;}
+  .j-photos{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;}
+  .j-photos img{width:calc(50% - 4px); border-radius:8px; display:block;}
+  .cert{min-height:100%; padding:calc(26px + env(safe-area-inset-top)) 22px 30px; display:flex; flex-direction:column; align-items:center; text-align:center;}
+  .cert-frame{width:100%; border:2px solid var(--bronze); outline:1px solid var(--bronze-light); outline-offset:-8px; border-radius:6px; padding:30px 22px 26px; background:#F5EEDF;}
+  .cert-seal{width:92px; height:92px; border-radius:50%; margin:0 auto 16px; background:radial-gradient(circle at 35% 30%, var(--bronze-light), var(--bronze) 60%, #6b5228 100%); border:3px solid #4a3a1c; display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-weight:700; font-size:26px; color:var(--plaque);}
+  .cert-frame .eyebrow{color:var(--bronze);}
+  .cert-frame h2{font-family:var(--serif); font-size:25px; font-weight:700; line-height:1.15;}
+  .cert-line{font-size:13.5px; color:var(--ink-soft); margin-top:14px; line-height:1.55;}
+  .cert-name{width:100%; margin-top:10px; border:none; border-bottom:1.5px solid var(--bronze); background:none; text-align:center; font-family:var(--serif); font-style:italic; font-size:24px; color:var(--ink); padding:6px 0;}
+  .cert-name:focus{outline:none; border-bottom-color:var(--river);}
+  .cert-date{font-family:var(--mono); font-size:11.5px; letter-spacing:.08em; color:var(--bronze); margin-top:16px;}
+  .cert-actions{width:100%; margin-top:18px;}
+  @media print{
+    body{background:#fff;}
+    .app{height:auto; max-width:none; overflow:visible; background:#fff;}
+    .screen{overflow:visible;}
+    .tabbar, .no-print, .mapview{display:none !important;}
+    .cert-name::placeholder{color:transparent;}
+  }
+
+  /* ---------- TABS ---------- */
+  .tabbar{display:flex; border-top:1px solid var(--line); background:var(--paper); padding-bottom:env(safe-area-inset-bottom); flex-shrink:0;}
+  .tab{flex:1; text-align:center; padding:11px 0 13px; cursor:pointer; background:none; border:none; font-family:var(--mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-soft);}
+  .tab.active{color:var(--river); font-weight:600;}
+  .tab .dot{width:5px; height:5px; border-radius:50%; background:var(--river); margin:0 auto 4px; opacity:0;}
+  .tab.active .dot{opacity:1;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="screen" id="screen"></div>
+
+  <div class="mapview hidden" id="mapview">
+    <div id="map"></div>
+    <div class="map-top">
+      <button class="map-btn" id="locBtn" onclick="toggleLocate()">◎ Find me</button>
+      <button class="map-btn" id="nearBtn" onclick="goNearest()">Nearest stop</button>
+    </div>
+    <div class="map-msg hidden" id="mapMsg"></div>
+    <div class="sheet hidden" id="sheet"></div>
+  </div>
+
+  <div class="tabbar" id="tabbar"></div>
+  <input type="file" id="photoInput" accept="image/*" capture="environment" class="hidden">
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* =====================================================================
+   PLACES — every pin on the map. Edit lat/lng or addr here to move a pin.
+   nav: what is handed to Google Maps (a street address, or "coords").
+   ===================================================================== */
+const PLACES = {
+  york:      {name:"York statue on the Belvedere", addr:"The Belvedere, 5th & Main Streets, Louisville, KY 40202", lat:38.25833, lng:-85.75805, nav:"coords"},
+  western:   {name:"Western Library", addr:"604 S. 10th St, Louisville, KY 40203", lat:38.24930, lng:-85.76870},
+  defender:  {name:"Louisville Defender office", addr:"1720 Dixie Hwy, Louisville, KY 40210", lat:38.22600, lng:-85.79200},
+  ali1701:   {name:"1701 W. Muhammad Ali Blvd", addr:"1701 W. Muhammad Ali Blvd, Louisville, KY 40203", lat:38.25220, lng:-85.78020},
+  slave:     {name:"Slave Trading in Louisville marker", addr:"Southeast corner of S. 2nd St & W. Main St, across from the KFC Yum! Center", lat:38.25612, lng:-85.75318, nav:"coords"},
+  simmons:   {name:"Ida B. Wells Hall", addr:"550 W. Kentucky St, Louisville, KY 40203", lat:38.24000, lng:-85.76220},
+  uofl:      {name:"University of Louisville, Belknap Campus", addr:"2301 S. 3rd St, Louisville, KY 40292", lat:38.21600, lng:-85.75950},
+  africa:    {name:"“Little Africa” historical marker", addr:"Virginia Ave at I-264, Louisville, KY 40211", lat:38.23968, lng:-85.81548, nav:"coords"},
+  farmington:{name:"Farmington Historic Home", addr:"3033 Bardstown Rd, Louisville, KY 40205", lat:38.21500, lng:-85.66750},
+  alihome:   {name:"Muhammad Ali childhood home marker", addr:"3302 Grand Ave, Louisville, KY 40211", lat:38.24155, lng:-85.80825},
+  gym:       {name:"Columbia Gym marker", addr:"824 S. 4th St, Louisville, KY 40203", lat:38.24150, lng:-85.75880},
+  b1535:     {name:"1535 W. Broadway", addr:"1535 W. Broadway, Louisville, KY 40203", lat:38.24840, lng:-85.77720},
+  b4309:     {name:"4309 W. Broadway", addr:"4309 W. Broadway, Louisville, KY 40211", lat:38.24970, lng:-85.82620},
+  wye:       {name:"Whitney Young Elementary at Engelhard", addr:"1004 S. 1st St, Louisville, KY 40203", lat:38.23850, lng:-85.75400},
+  chestnut:  {name:"1130 W. Chestnut St", addr:"1130 W. Chestnut St, Louisville, KY 40203", lat:38.24970, lng:-85.77120},
+  jackson:   {name:"828 S. Jackson St", addr:"828 S. Jackson St, Louisville, KY 40203", lat:38.24150, lng:-85.74480},
+  tenth:     {name:"Honorary street sign on S. 10th St", addr:"S. 10th St, alongside the Chestnut Street Family YMCA, downtown Louisville, KY 40203", lat:38.25000, lng:-85.76830, nav:"coords"}
+};
+
+/* =====================================================================
+   STOPS — the 20 stops. places:[] lists the pins for each stop.
+   note: shown under "Where to go" when a stop has no pin.
+   ===================================================================== */
+const stops = [
+  {cat:"Explorers", title:"The Man Beside Lewis and Clark", places:["york"], clue:"Lewis and Clark led the first American expedition across the western United States. Sacajawea is remembered — but another member of the party isn't nearly as well known.", questions:["What was this person's name?","Who was he?","What did Native Americans say about him when they met him on the trip?","What happened to him at the end of the expedition?"], challenge:"Find his statue. Take a selfie with it and a photo of the historical tablet's inscription. Who sculpted it?"},
+  {cat:"Black Jockeys", title:"Derby's First Champions", places:[], note:"No single place for this one — look to community sites and organizations around town for photos of these jockeys.", clue:"The first jockeys in the Kentucky Derby were Black men. In 1875, an African American jockey won the very first Derby.", questions:["Who was he?","Name at least 3 other Black jockeys who rode in the Kentucky Derby."], challenge:"Check community sites and organizations for photos of these jockeys. Photograph what you find."},
+  {cat:"Libraries", title:"A Library Built Against the Odds", places:["western"], clue:"One of the first African American libraries in the United States is in Louisville. Its story runs through one leader in particular — and a man named Thomas F. Blue.", questions:["Which Louisville leader fought for library services for the African American community?","What was the library first called, and what year was it founded?","Where was it originally located, and what's its current name and location?","Who was Thomas F. Blue?","Find 3 books he recommended for Central High School by \"colored\" authors — list titles and authors."], challenge:"Go to the library. Photo of yourself on the steps. Inside, find a display case of items children might play with — photograph and describe it. Find and photograph the oldest book. Ask the librarian about it, and about what it takes to become a librarian."},
+  {cat:"Publications", title:"The Paper That Never Stopped", places:["defender"], clue:"Kentucky's oldest leading weekly newspaper still published by African Americans is still in print today.", questions:["What is the paper called?"], challenge:"Find a recent issue and photograph its front page."},
+  {cat:"Neighborhoods", title:"The Man the Academy Was Named For", places:["ali1701"], placeNotes:{ali1701:"The Samuel Plato Academy of Historic Preservation Trades once operated at this address. It has since closed."}, clue:"The historic Russell Neighborhood was home to Samuel Plato, a famous man later honored with an academy that bore his name. The academy no longer operates, but the building where it stood is still here.", questions:["Who was Samuel Plato, and why did he become famous?","What did the Samuel Plato Academy teach while it was open?"], challenge:"Visit the building where the academy once operated and photograph it. Ask someone inside what they know about Samuel Plato or the academy."},
+  {cat:"Underground Railroad", title:"Sold Down the River", places:["slave"], clue:"Louisville was a slave state and a slave-trading post — but the Ohio River, bordering two free states, made it an escape route north.", questions:["What does \"sold down the river\" mean, and how does it connect to the Ohio River and Louisville?"], challenge:null},
+  {cat:"Higher Education", title:"Kentucky's First HBCU", places:["simmons"], clue:"Kentucky is home to two Historically Black Colleges and Universities.", questions:["What was the original name of the first HBCU in Kentucky, and when was it founded?","How is it connected to the University of Louisville?","What is its current name?","Who is its current president, and what's his other occupation?"], challenge:null},
+  {cat:"Desegregation", title:"Fighting to Belong at U of L", places:["uofl"], clue:"The University of Louisville was once segregated. Many African Americans fought to desegregate it — and many went on to shape it.", questions:["Identify 5 African Americans who played significant roles at the University."], challenge:"Walk the campus and photograph historical markers or artifacts revealing who these individuals are."},
+  {cat:"Neighborhoods", title:"Little Africa", places:["africa"], clue:"The Parkland community was once known as Little Africa.", questions:["Why was it given that name?","Who was Joseph S. Cotter, Sr., and what was named after him?"], challenge:"Find the historical marker describing this community."},
+  {cat:"Slavery", title:"The Fire at the Hemp Plantation", places:["slave","farmington"], clue:"Kentucky was a slave state. Downtown Louisville has a marked site where Black people were sold. Elsewhere, in the Highlands, a plantation still bears the memory of a young enslaved man who set it ablaze to win his freedom.", questions:["What was his name?","What was life like for the enslaved people on that plantation?","Where did freed people go after emancipation?","What was the plantation called, and who owned it?","How does the plantation connect to the University of Louisville's history?"], challenge:"Photograph the downtown historical marker of the sale site. Go on a tour of the plantation."},
+  {cat:"The Arts", title:"The Word the Poet Coined", places:[], note:"No set place — find a poetry or spoken word open mic of your own choosing.", clue:"At 51, one poet became the youngest — and first African American — named Kentucky Poet Laureate.", questions:["Who was this poet, and what word did they coin?","What's the term's relevance, meaning, and significance?","Find one of their poems — read it and write about its message."], challenge:"Visit a local poetry / spoken word open mic."},
+  {cat:"Music", title:"Roland Hayes' Louisville Connection", places:[], clue:"Tenor Roland Hayes, born in Curryville, Georgia in 1887, was the first African American man to win international fame as a concert performer. He made his career in Boston — but he has a tie to Louisville.", questions:["What is Roland Hayes' connection to Louisville and its institutions?"], challenge:null},
+  {cat:"Science & Arts", title:"The Chemist Who Became an Artist", places:[], clue:"She was the first African American chemist to work at Brown-Forman. She's still active in Louisville's community and arts scene today, decorated for her contributions.", questions:["Who is this woman?","What are her contributions to Louisville and Kentucky?"], challenge:"Locate and download a photo of her. Document your sources."},
+  {cat:"Celebrity", title:"The Greatest, at Home", places:["alihome","gym"], clue:"Muhammad Ali's life and legacy are extraordinary — and the West End of Louisville is where it began.", questions:["What was his childhood home address?","Which gym did he train at?","What name did his parents give him, and whose name was that originally?","Why did he change it as an adult?","What did he mean calling himself a conscientious objector to Vietnam?","Find a quote describing him as a humanitarian — what does it mean to you and your life?"], challenge:"Photograph the historical marker at his childhood home and the gym. Locate 2 Louisville institutions named in his honor — describe each and photograph the locations."},
+  {cat:"Civil Rights", title:"The Man Behind Jim Crow", places:[], clue:"Jim Crow has a distinct history in Kentucky.", questions:["Who coined the phrase \"Jim Crow,\" and what's the story behind the name?","Give 3 examples of Jim Crow laws enacted in Kentucky between 1920 and 1960."], challenge:null},
+  {cat:"Education", title:"Segregated by Law", places:["wye","jackson"], placeNotes:{wye:"For question a.", jackson:"For question b."}, clue:"Schools nationwide were once segregated — by custom in the North, by law in Kentucky and Louisville.", questions:["An elementary school was named after a civil rights hero who was once the head of the National Urban League. Its building has since been closed and repurposed as a dedicated sixth-grade academy for Hudson Middle School. The elementary school program is still open and operating, having merged with Engelhard Elementary. The combined school is called Whitney Young Elementary at Engelhard and is located in Old Louisville. Find the school and take a picture of it.","Name the JCPS school honoring a civil rights activist, principal, and teacher who fought to create a college for African Americans and once led the Kentucky Negro Educational Association. What magnet programs does it house? Find the school and take a picture of the building."], challenge:"Two pictures to collect: Whitney Young Elementary at Engelhard, and the school building from question b."},
+  {cat:"Community", title:"The Street Named After Him", places:["tenth"], clue:"The Black Achievers Program exists in many states — its Louisville founder has a street named in his honor.", questions:["Who founded the Black Achievers Program in Louisville?","What is the program, and why does it matter today?"], challenge:"Find the street that is named in his honor and take a picture of the street sign."},
+  {cat:"Music", title:"The State Song's Other Story", places:[], clue:"Kentucky is known for its state song — but the song has a more complicated original story.", questions:["What is the current title of the Kentucky state song, and who wrote it?","What was its original title, and what year was it written?","Find the original lyrics — what is the song about?","Why is it controversial, and when is it typically sung?"], challenge:null},
+  {cat:"Community Orgs", title:"Three Doors on Two Streets", places:["ali1701","b1535","b4309"], clue:"Several community organizations across Louisville serve the African American community — this stop takes you to three: 1701 Muhammad Ali Blvd, 1535 W. Broadway, and 4309 W. Broadway.", questions:["What is each organization's name, and who directs it?","Describe two recent programs or events at each."], challenge:"Photograph the sign on each building."},
+  {cat:"Migration", title:"The Exodusters of 1877", places:[], note:"The town itself is in Kansas — this one is an armchair journey.", clue:"During Reconstruction, freed people began leaving the South before the Great Migration. One of the first groups left Kentucky and helped found an all-Black town in Kansas in 1877 — one of roughly 20 such towns.", questions:["What was the community called?","What are the 2 competing explanations for its name?","What Kentucky town did the first group leave from, and what's the significance of their arrival date?","When did the second group arrive, and from where in Kentucky?"], challenge:"Find 3 photos depicting this Kansas community and describe what they show."},
+  {cat:"Education", title:"The Marker at the High School", places:["chestnut"], clue:"Before desegregation, one high school served all of Louisville's African American students. Its story began in 1873 with the state's first Black public school, and between 1916 and 1970 the original building served as an elementary school. Today, Kentucky Historical Marker #2590 stands at the high school's current campus to commemorate its broader history.", questions:["What high school did all African American students attend before desegregation?","What does the marker tell you about the school's history?"], challenge:"Find Kentucky Historical Marker #2590 at the school's current location and take a picture of it."}
+];
+
+/* =====================================================================
+   RESEARCH LINKS — searchable sources shown under "Where to Look".
+   RES_FOR lists, in stop order, which sources each stop offers.
+   ===================================================================== */
+const RES = {
+  nkaa:    ["Notable Kentucky African Americans Database", "https://nkaa.uky.edu/nkaa/"],
+  explore: ["ExploreKYHistory", "https://explorekyhistory.ky.gov/"],
+  khs:     ["Kentucky Historical Markers (Kentucky Historical Society)", "https://history.ky.gov/markers"],
+  hmdb:    ["The Historical Marker Database", "https://www.hmdb.org/"],
+  lfpl:    ["Louisville Free Public Library", "https://www.lfpl.org/"],
+  uofl:    ["University of Louisville Archives & Special Collections", "https://library.louisville.edu/archives"],
+  blackpast:["BlackPast", "https://www.blackpast.org/"],
+  lecl:    ["Lewis and Clark National Historic Trail (National Park Service)", "https://www.nps.gov/lecl/"],
+  nps:     ["National Park Service", "https://www.nps.gov/"],
+  derby:   ["Kentucky Derby Museum", "https://www.derbymuseum.org/"],
+  loc:     ["Library of Congress", "https://www.loc.gov/"],
+  arts:    ["Kentucky Arts Council", "https://artscouncil.ky.gov/"],
+  jimcrow: ["Jim Crow Museum (Ferris State University)", "https://jimcrowmuseum.ferris.edu/"],
+  jcps:    ["Jefferson County Public Schools", "https://www.jefferson.kyschools.us/"]
+};
+const RES_FOR = [
+  ["lecl","nkaa","explore"],      // 1  Lewis and Clark
+  ["derby","nkaa","blackpast"],   // 2  Jockeys
+  ["lfpl","nkaa","explore"],      // 3  Library
+  ["nkaa","uofl","lfpl"],         // 4  Newspaper
+  ["nkaa","explore","hmdb"],      // 5  Samuel Plato
+  ["explore","khs","nkaa"],       // 6  Sold down the river
+  ["nkaa","uofl","blackpast"],    // 7  First HBCU
+  ["uofl","nkaa","hmdb"],         // 8  U of L
+  ["khs","explore","nkaa"],       // 9  Little Africa
+  ["explore","uofl","nkaa"],      // 10 Plantation
+  ["arts","nkaa","lfpl"],         // 11 Poet
+  ["nkaa","blackpast","uofl"],    // 12 Roland Hayes
+  ["nkaa","lfpl"],                // 13 Chemist
+  ["explore","nkaa","khs"],       // 14 Ali
+  ["jimcrow","nkaa","explore"],   // 15 Jim Crow
+  ["jcps","nkaa"],                // 16 Schools
+  ["nkaa","lfpl"],                // 17 Black Achievers
+  ["loc","explore"],              // 18 State song
+  ["lfpl","nkaa"],                // 19 Community orgs
+  ["loc","blackpast","nps"],      // 20 Exodusters
+  ["khs","hmdb","nkaa"]           // 21 High school marker
+];
+
+/* =====================================================================
+   HINTS — one per question, in stop order. Nudges, never answers.
+   ===================================================================== */
+const HINTS = [
+  ["The plaque beside the statue on the Belvedere gives his name.",
+   "Think about his relationship to William Clark. The plaque explains it.",
+   "The expedition's journals recorded how Native nations reacted to him. Search the Lewis and Clark trail site for his name plus \"journals.\"",
+   "Compare what the other members of the party received after the journey with what he received."],
+  ["Search \"first Kentucky Derby winner 1875 jockey.\" The Kentucky Derby Museum tells his story.",
+   "Look at Derby winners from the 1800s and early 1900s. One Black jockey won it three times."],
+  ["Search the Notable Kentucky African Americans Database for the library's founding. A school principal led the push.",
+   "It opened in the first decade of the 1900s, and its first name described who it served.",
+   "It began in rented rooms before its Carnegie building went up. The map pin shows where it stands today.",
+   "He was the first to hold a certain job at a public library, and he trained others to do it too.",
+   "Ask a librarian at the map pin about the library's archives and his reading lists."],
+  ["Its name shares a word with a famous Chicago paper. The map pin is its office."],
+  ["He designed and built things. Search his name with \"architect.\"",
+   "The academy's full name tells you. Read the note under the map pin for this stop."],
+  ["Think about which way the Ohio flows from Louisville, and where the largest slave markets were. The marker at 2nd and Main explains."],
+  ["It was founded by Black Baptists in the years after the Civil War. Search the Notable Kentucky African Americans Database for Kentucky's first Black college.",
+   "Search for \"Louisville Municipal College\" and find out whose campus it used.",
+   "It is named for one of its early presidents. The building at the map pin belongs to it.",
+   "Check the college's website. His other work happens on Sundays."],
+  ["Start with the U of L Archives. Look for the first Black students, faculty and trustees, and the people campus buildings and centers are named for."],
+  ["Read the historical marker at the map pin. It gives an even earlier name for the area.",
+   "He was a poet and educator. Look for what the city built in this area in the 1950s that carried his name."],
+  ["Search the plantation's name with \"fire\" and \"freedom.\" The plantation's own tour tells his story.",
+   "Hemp was the crop. Look up what hemp work demanded of the people forced to do it.",
+   "Search for the Black neighborhoods that grew in Louisville after the Civil War.",
+   "The second map pin for this stop is the plantation. The family who owned it had a famous friend from Illinois.",
+   "Follow the family name. Look for it on a U of L school and on a museum beside campus."],
+  ["The Kentucky Arts Council lists every Poet Laureate. The word blends a region with a heritage.",
+   "Ask yourself who gets left out of the usual picture of Appalachia.",
+   "Many of the poet's poems are free to read online, and your library has the collections."],
+  ["Search his name with \"Louisville.\" He spent time here early on, before Boston."],
+  ["Search \"first African American chemist Brown-Forman.\" She is also known as an artist and arts advocate.",
+   "Look for the awards she has received and the organizations she has helped lead."],
+  ["The first map pin for this stop sits right on it.",
+   "The second map pin. Today the building belongs to a university.",
+   "His father had the same name. Look up the 19th-century Kentuckian they were both named for.",
+   "It followed his 1964 title win and his religious conversion.",
+   "Look up what the term means, then read his own words about the war from 1967.",
+   "Search for the tributes written when he died in 2016."],
+  ["It began as a stage character in the 1830s. The Jim Crow Museum link below tells the story.",
+   "Think about schools, trains, parks, hospitals and marriage. Search \"Kentucky segregation laws.\""],
+  ["The map pin marked \"For question a\" takes you there.",
+   "The map pin marked \"For question b\" takes you there. The school's name is on the building."],
+  ["He directed the Chestnut Street YMCA. The street sign beside it carries his name.",
+   "The YMCA's website describes the program. Think mentoring, college and careers."],
+  ["Its composer also wrote \"Oh! Susanna.\"",
+   "It was written in the 1850s. Compare the title then and now.",
+   "The Library of Congress has the original sheet music. Read every verse, not only the first.",
+   "Think of the first Saturday in May."],
+  ["The sign on each building gives the name. Each organization's website lists its leader.",
+   "Check each organization's website or social media for news and events."],
+  ["Search \"all-Black town Kansas 1877 Kentucky.\" It is now a National Historic Site.",
+   "One explanation comes from the Bible. The other is a legend about an enslaved African prince.",
+   "They came from central Kentucky's Bluegrass region. Note the month and day they arrived.",
+   "Look for a second wave the following year."],
+  ["The name is on the marker at the map pin.",
+   "Read both sides of the marker."]
+];
+
+/* =====================================================================
+   OUTINGS — places grouped by area, in a sensible visiting order.
+   ===================================================================== */
+const OUTINGS = [
+  {name:"Downtown & Russell", note:"The riverfront, Main Street and the blocks just west of downtown. Close enough to park once or twice and walk between some of them.", places:["york","slave","tenth","western","chestnut","b1535","ali1701"]},
+  {name:"The West End", note:"Parkland, Chickasaw and the far end of Broadway. Best by car.", places:["defender","africa","alihome","b4309"]},
+  {name:"Old Louisville & U of L", note:"South of Broadway, from 4th Street down to campus. A short drive or a long walk between stops.", places:["gym","simmons","wye","jackson","uofl"]},
+  {name:"The Highlands", note:"One place, and worth the trip. Check tour times before you go.", places:["farmington"]}
+];
+
+/* ---------- read aloud (the phone's own voice) ---------- */
+const canSpeak = "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
+let speaking = false;
+function stopSpeaking(){ if(canSpeak && speaking){ speaking = false; speechSynthesis.cancel(); } paintListen(); }
+function paintListen(){ const b = $("listenBtn"); if(!b) return; b.classList.toggle("on", speaking); b.textContent = speaking ? "■ Stop" : "🔊 Listen"; }
+function readAloud(){
+  if(!canSpeak) return;
+  if(speaking){ stopSpeaking(); return; }
+  const s = stops[activeIdx];
+  const parts = ["Stop " + (activeIdx+1) + ". " + s.title + ".", "The clue. " + s.clue]
+    .concat(s.questions.map((q,qi)=>"Question " + String.fromCharCode(65+qi) + ". " + q));
+  if(s.challenge) parts.push("The challenge. " + s.challenge);
+  speechSynthesis.cancel();
+  speaking = true; paintListen();
+  parts.forEach((t,k)=>{
+    const u = new SpeechSynthesisUtterance(t.replace(/—/g, ", "));
+    u.lang = "en-US"; u.rate = 0.95;
+    if(k === parts.length-1) u.onend = () => { speaking = false; paintListen(); };
+    u.onerror = () => { speaking = false; paintListen(); };
+    speechSynthesis.speak(u);
+  });
+}
+
+/* ---------- saved state (stays on this device only) ---------- */
+const KEY = "lbhth-v1";
+let state = {done:new Array(stops.length).fill(false), answers:{}, name:"", finishedAt:null};
+try{
+  const s = JSON.parse(localStorage.getItem(KEY));
+  if(s && Array.isArray(s.done)){ state.done = stops.map((_,i)=>!!s.done[i]); state.answers = s.answers || {}; state.name = s.name || ""; state.finishedAt = s.finishedAt || null; }
+}catch(e){}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+
+let view = "home", activeIdx = 0, listFilter = "all";
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const completedCount = () => state.done.filter(Boolean).length;
+const stopsAt = pid => stops.map((s,i)=>s.places.includes(pid)?i:-1).filter(i=>i>=0);
+
+/* ---------- photos (IndexedDB, on this device only) ---------- */
+let dbp = null;
+function db(){
+  if(dbp) return dbp;
+  dbp = new Promise((res,rej)=>{
+    const r = indexedDB.open("lbhth-photos",1);
+    r.onupgradeneeded = () => { r.result.createObjectStore("photos",{keyPath:"id",autoIncrement:true}).createIndex("stop","stop"); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+  return dbp;
+}
+async function photosFor(i){
+  try{ const d = await db();
+    return await new Promise((res,rej)=>{ const q = d.transaction("photos").objectStore("photos").index("stop").getAll(i); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); });
+  }catch(e){ return []; }
+}
+async function addPhoto(i, blob){ const d = await db(); return new Promise((res,rej)=>{ const t = d.transaction("photos","readwrite"); t.objectStore("photos").add({stop:i, blob, at:Date.now()}); t.oncomplete=res; t.onerror=()=>rej(t.error); }); }
+async function delPhoto(id){ const d = await db(); return new Promise(res=>{ const t = d.transaction("photos","readwrite"); t.objectStore("photos").delete(id); t.oncomplete=res; }); }
+function shrink(file){
+  return new Promise(res=>{
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, 1400/Math.max(img.width,img.height));
+      const c = document.createElement("canvas"); c.width = Math.round(img.width*k); c.height = Math.round(img.height*k);
+      c.getContext("2d").drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(url);
+      c.toBlob(b=>res(b||file),"image/jpeg",0.82);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); res(file); };
+    img.src = url;
+  });
+}
+$("photoInput").addEventListener("change", async e=>{
+  const f = e.target.files[0]; e.target.value = "";
+  if(!f) return;
+  try{ await addPhoto(activeIdx, await shrink(f)); }catch(err){}
+  drawThumbs();
+});
+async function drawThumbs(){
+  const box = $("thumbs"); if(!box) return;
+  const list = await photosFor(activeIdx);
+  box.innerHTML = list.map(p=>`<div class="thumb"><img src="${URL.createObjectURL(p.blob)}" alt="Your photo"><button aria-label="Remove photo" onclick="removePhoto(${p.id})">×</button></div>`).join("");
+}
+async function removePhoto(id){ await delPhoto(id); drawThumbs(); }
+
+/* ---------- navigation ---------- */
+function go(v){ stopSpeaking(); view = v; render(); }
+function openStop(i){ stopSpeaking(); activeIdx = i; view = "detail"; render(); $("screen").scrollTop = 0; }
+function toggleDone(){
+  state.done[activeIdx] = !state.done[activeIdx];
+  const all = completedCount() === stops.length;
+  if(all && !state.finishedAt){ state.finishedAt = Date.now(); save(); refreshPins(); go("cert"); $("screen").scrollTop = 0; return; }
+  if(!all) state.finishedAt = null;
+  save(); render(); refreshPins();
+}
+function setFilter(f){ listFilter = f; if(f === "near" && !myPos && watchId === null){ locDenied = false; startLocate(); } render(); $("screen").scrollTop = 0; }
+function setName(v){ state.name = v; save(); }
+function printPage(){ try{ window.print(); }catch(e){} }
+function fmtDate(t){ return new Date(t).toLocaleDateString("en-US",{year:"numeric", month:"long", day:"numeric"}); }
+function showOuting(k){
+  go("map");
+  setTimeout(()=>{ if(map) map.fitBounds(OUTINGS[k].places.map(pid=>[PLACES[pid].lat,PLACES[pid].lng]),{padding:[60,60], maxZoom:16}); },150);
+}
+function setAnswer(i, qi, val){ state.answers[i+"-"+qi] = val; save(); }
+
+function render(){
+  const isMap = view === "map";
+  $("screen").classList.toggle("hidden", isMap);
+  $("mapview").classList.toggle("hidden", !isMap);
+  if(view === "home") $("screen").innerHTML = renderHome();
+  else if(view === "list") $("screen").innerHTML = renderList();
+  else if(view === "detail"){ $("screen").innerHTML = renderDetail(); drawThumbs(); }
+  else if(view === "journal"){ $("screen").innerHTML = renderJournal(); drawJournalPhotos(); }
+  else if(view === "cert") $("screen").innerHTML = renderCert();
+  else showMap();
+  const t = (v,label,on) => `<button class="tab ${on?'active':''}" onclick="go('${v}')"><div class="dot"></div>${label}</button>`;
+  $("tabbar").innerHTML = t("home","Home",view==="home") + t("list","Hunt",view==="list"||view==="detail") + t("map","Map",isMap) + t("journal","Journal",view==="journal"||view==="cert");
+}
+
+function renderHome(){
+  const n = completedCount();
+  return `
+  <div class="home">
+    <div class="eyebrow">Louisville, Kentucky</div>
+    <h1>Black History<br>Treasure Hunt</h1>
+    <div class="sub">Twenty-one stops. One city's story.</div>
+    <div class="marker-badge">
+      <div class="count">${n ? n+"/"+stops.length : stops.length}</div>
+      <div class="of">${n ? "STOPS FOUND" : "STOPS ON THE HUNT"}</div>
+    </div>
+    <div class="home-body">
+      <p class="home-desc">Explorers, jockeys, librarians, poets, and the neighborhoods that shaped them. <b>Some stops send you out into Louisville to find a place, collect something or take a picture. Others are pure detective work you can do from anywhere.</b> The map will guide you to every place worth standing in.</p>
+      <p class="privacy">Your answers, photos and location stay on this phone. Nothing is sent to anyone.</p>
+      <button class="start-btn" onclick="go('list')">${n ? "Continue the Hunt →" : "Begin the Hunt →"}</button>
+      ${n === stops.length ? `<button class="ghost-btn" onclick="go('cert')">View Your Certificate</button>` : ""}
+      <button class="ghost-btn" onclick="go('map')">See the Map</button>
+    </div>
+  </div>`;
+}
+
+function stopCard(i, extra){
+  const s = stops[i];
+  return `<button class="stop-card ${state.done[i]?'done':''}" onclick="openStop(${i})">
+        <div class="stop-num">${state.done[i]?'✓':(i+1)}</div>
+        <div class="stop-info">
+          <div class="stop-cat">${s.cat}</div>
+          <div class="stop-title">${s.title}</div>
+          <div class="stop-meta">${extra || (s.places.length ? "📍 " + (s.places.length>1 ? s.places.length+" places to visit" : "On the map") : "🔎 Research from anywhere")}</div>
+        </div>
+        <div class="stop-arrow">›</div>
+      </button>`;
+}
+function nearestDist(i){ return Math.min(...stops[i].places.map(pid=>haversine(myPos,PLACES[pid]))); }
+function renderList(){
+  const pct = Math.round(completedCount()/stops.length*100);
+  const fb = (k,label) => `<button class="filter ${listFilter===k?'on':''}" onclick="setFilter('${k}')">${label}</button>`;
+  let body = "";
+  if(listFilter === "all") body = stops.map((s,i)=>stopCard(i)).join("");
+  else if(listFilter === "research"){
+    body = `<div class="notice"><b>Research from anywhere</b>The ${stops.filter(s=>!s.places.length).length} stops with no place to visit. Do them from the couch, the bus or the library.</div>` + stops.map((s,i)=>s.places.length?"":stopCard(i)).join("");
+  }
+  else if(listFilter === "near"){
+    let idx = stops.map((s,i)=>i).filter(i=>stops[i].places.length);
+    if(myPos){
+      idx.sort((a,b)=>nearestDist(a)-nearestDist(b));
+      body = `<div class="notice"><b>Sorted by distance from you</b>The ${idx.length} stops with a place to visit, closest first.</div>` + idx.map(i=>stopCard(i, "📍 " + miles(nearestDist(i)) + " away" + (stops[i].places.length>1 ? " · " + stops[i].places.length + " places" : ""))).join("");
+    }else{
+      body = (locDenied || !navigator.geolocation
+        ? `<div class="notice warn"><b>Location isn't available here</b>So these ${idx.length} stops with a place to visit are in hunt order, not by distance. Allow location for this site in your browser settings, then tap “Closest to me” again.</div>`
+        : `<div class="notice"><b>Finding you…</b>Once your location comes through, these ${idx.length} stops will sort closest first. Until then they are in hunt order.</div>`) + idx.map(i=>stopCard(i)).join("");
+    }
+  }
+  else body = `<div class="notice"><b>Plan by neighborhood</b>Each box gathers the places in one part of town, in an order that makes sense to travel. Pick one for an afternoon.</div>` + OUTINGS.map((o,k)=>`
+      <div class="outing">
+        <h3>${o.name}</h3>
+        <div class="outing-sub">${o.note}</div>
+        <ol>${o.places.map(pid=>`<li>
+          <div class="o-name">${PLACES[pid].name}</div>
+          <div class="o-stops">${stopsAt(pid).map(i=>`<button class="o-stop ${state.done[i]?'done':''}" onclick="openStop(${i})">${state.done[i]?'✓ ':''}Stop ${i+1} · ${stops[i].title}</button>`).join("")}</div>
+        </li>`).join("")}</ol>
+        <button class="chip solid" onclick="showOuting(${k})">See this outing on the map</button>
+      </div>`).join("");
+  return `
+  <div class="list-wrap">
+    <div class="list-header"><h2>The Hunt</h2><div class="prog">${completedCount()}/${stops.length} found</div></div>
+    <div class="progress-bar"><div class="fill" style="width:${pct}%"></div></div>
+    <div class="filters">${fb("all","All stops")}${fb("near","Closest to me")}${fb("research","Research from anywhere")}${fb("outings","Plan by neighborhood")}</div>
+    ${body}
+  </div>`;
+}
+
+function renderJournal(){
+  const n = completedCount();
+  return `
+  <div class="j-wrap">
+    <h2>My Journal</h2>
+    <p class="j-sub">${state.name ? esc(state.name) + " · " : ""}${n} of ${stops.length} stops found${state.finishedAt ? " · finished " + fmtDate(state.finishedAt) : ""}.<br><span class="no-print">Everything you've written and photographed, in one place. It lives only on this phone.</span></p>
+    <div class="j-actions no-print">
+      <button class="chip solid" onclick="printPage()">Print or save as PDF</button>
+      ${n === stops.length ? `<button class="chip" onclick="go('cert')">My certificate</button>` : ""}
+    </div>
+    ${stops.map((s,i)=>`
+      <div class="j-stop">
+        <div class="j-tag">Stop ${i+1} · ${s.cat}${state.done[i] ? " · Found" : ""}</div>
+        <h3>${s.title}</h3>
+        ${s.questions.map((q,qi)=>{ const a = (state.answers[i+"-"+qi]||"").trim();
+          return `<div class="j-q">${String.fromCharCode(97+qi)}. ${q}</div><div class="j-a ${a?'':'blank'}">${a ? esc(a) : "Not answered yet"}</div>`; }).join("")}
+        <div class="j-photos" id="jp${i}"></div>
+      </div>`).join("")}
+  </div>`;
+}
+async function drawJournalPhotos(){
+  for(let i=0;i<stops.length;i++){
+    const list = await photosFor(i), box = $("jp"+i);
+    if(!box || view !== "journal") return;
+    box.innerHTML = list.map(p=>`<img src="${URL.createObjectURL(p.blob)}" alt="Your photo for stop ${i+1}">`).join("");
+  }
+}
+
+function renderCert(){
+  const all = completedCount() === stops.length;
+  if(!all) return `<div class="cert"><div class="cert-frame"><div class="cert-seal">${completedCount()}</div><h2>Not quite yet</h2><p class="cert-line">Your certificate appears when all ${stops.length} stops are found. ${stops.length - completedCount()} to go.</p></div><div class="cert-actions"><button class="start-btn" onclick="go('list')">Back to the Hunt →</button></div></div>`;
+  return `
+  <div class="cert">
+    <div class="cert-frame">
+      <div class="cert-seal">${stops.length}</div>
+      <div class="eyebrow">Certificate of Completion</div>
+      <h2>Louisville Black History Treasure Hunt</h2>
+      <p class="cert-line">This certifies that</p>
+      <input class="cert-name" placeholder="Type your name" aria-label="Your name" value="${esc(state.name)}" oninput="setName(this.value)">
+      <p class="cert-line">followed every clue, stood where history happened, and found all ${stops.length} stops.</p>
+      <div class="cert-date">${fmtDate(state.finishedAt || Date.now())} · Louisville, Kentucky</div>
+    </div>
+    <div class="cert-actions no-print">
+      <button class="start-btn" onclick="printPage()">Print or Save Certificate</button>
+      <button class="ghost-btn" onclick="go('journal')">Open My Journal</button>
+    </div>
+  </div>`;
+}
+
+function renderDetail(){
+  const s = stops[activeIdx], i = activeIdx, isDone = state.done[i];
+  const where = s.places.length ? s.places.map(pid=>{
+    const p = PLACES[pid], d = distTo(p), extra = s.placeNotes && s.placeNotes[pid];
+    return `<div class="place">
+      <div class="place-name">${p.name}</div>
+      <div class="place-addr">${p.addr}${extra?"<br>"+extra:""}${d?"<br>"+d+" from you":""}</div>
+      <div class="place-actions">
+        <button class="chip" onclick="showOnMap('${pid}')">Show on map</button>
+        <button class="chip solid" onclick="startRoute('${pid}')">Directions</button>
+      </div>
+    </div>`;}).join("")
+    : `<p class="no-place">${s.note || "No travel needed — this stop is pure research. Dig in from wherever you are."}</p>`;
+  return `
+  <div class="detail-hero">
+    <button class="back-btn" onclick="go('list')">← The Hunt</button>
+    <div class="detail-cat">Stop ${i+1} of ${stops.length} · ${s.cat}</div>
+    <div class="detail-title">${s.title}</div>
+    <div class="detail-plate">${isDone ? 'FOUND' : 'NOT YET FOUND'}</div>${canSpeak ? `<button class="listen-btn ${speaking?'on':''}" id="listenBtn" onclick="readAloud()">${speaking ? "■ Stop" : "🔊 Listen"}</button>` : ""}
+  </div>
+  <div class="detail-body">
+    <div class="block-label">The Clue</div>
+    <div class="clue-text">${s.clue}</div>
+
+    <div class="block-label">Where to Go</div>
+    ${where}
+
+    <div class="block-label">Dig In</div>
+    <ul class="q-list">
+      ${s.questions.map((q,qi)=>`<li data-n="${String.fromCharCode(97+qi)}.">${q}
+        <textarea class="answer-input" rows="1" placeholder="Your answer…" aria-label="Answer ${String.fromCharCode(97+qi)}" oninput="setAnswer(${i},${qi},this.value)">${esc(state.answers[i+"-"+qi]||"")}</textarea>
+        ${HINTS[i] && HINTS[i][qi] ? `<details class="hint"><summary>Need a hint?</summary><p>${HINTS[i][qi]}</p></details>` : ""}</li>`).join("")}
+    </ul>
+
+    <div class="block-label">Where to Look</div>
+    <div class="res-list">
+      ${(RES_FOR[i]||[]).map(k=>`<a class="res-link" href="${RES[k][1]}" target="_blank" rel="noopener"><span>${RES[k][0]}</span><span>↗</span></a>`).join("")}
+    </div>
+    <p class="res-note">Searchable collections to start your digging. They open in your browser.</p>
+
+    ${s.challenge ? `
+    <div class="challenge-box">
+      <div class="cb-label">The Challenge</div>
+      <p>${s.challenge}</p>
+      <button class="camera-chip" onclick="document.getElementById('photoInput').click()">📷 Add a photo</button>
+      <div class="thumbs" id="thumbs"></div>
+    </div>` : ""}
+
+    <button class="complete-btn ${isDone?'undo':''}" onclick="toggleDone()">${isDone ? 'Undo — Not Found Yet' : 'I Found It — Mark Complete'}</button>
+  </div>`;
+}
+
+/* =====================================================================
+   MAP, GPS AND DIRECTIONS
+   ===================================================================== */
+let map = null, pins = {}, me = null, meRing = null, watchId = null, myPos = null, following = false;
+let routeLine = null, routeTo = null, routeMode = "driving", routeReq = 0, locDenied = false;
+
+function miles(m){ const mi = m/1609.344; return mi < 0.1 ? Math.round(m*3.28084/10)*10 + " ft" : mi.toFixed(mi<10?1:0) + " mi"; }
+function mins(s){ const m = Math.max(1, Math.round(s/60)); return m < 60 ? m + " min" : Math.floor(m/60) + " hr " + (m%60) + " min"; }
+function haversine(a,b){ const R=6371000, r=x=>x*Math.PI/180, dLat=r(b.lat-a.lat), dLng=r(b.lng-a.lng);
+  const h=Math.sin(dLat/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLng/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
+function distTo(p){ return myPos ? miles(haversine(myPos,p)) : ""; }
+function mapMsg(t){ const m = $("mapMsg"); m.textContent = t || ""; m.classList.toggle("hidden", !t); }
+
+function pinIcon(pid){
+  const idx = stopsAt(pid), allDone = idx.every(i=>state.done[i]);
+  return L.divIcon({className:"", iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-30],
+    html:`<div class="pin ${allDone?'done':''}"><span>${allDone?'✓':idx.map(i=>i+1).join("·")}</span></div>`});
+}
+function popupHtml(pid){
+  const p = PLACES[pid], d = distTo(p);
+  return `<div class="pop-name">${p.name}</div>
+    <div class="pop-addr">${p.addr}${d?"<br>"+d+" from you":""}</div>
+    ${stopsAt(pid).map(i=>`<button class="pop-stop" onclick="openStop(${i})"><b>STOP ${i+1}${state.done[i]?" ✓":""}</b><br>${stops[i].title}</button>`).join("")}
+    <button class="chip solid" onclick="startRoute('${pid}')">Directions</button>`;
+}
+function refreshPins(){ if(!map) return; for(const pid in pins){ pins[pid].setIcon(pinIcon(pid)); } }
+
+function showMap(){
+  if(typeof L === "undefined"){ mapMsg("The map couldn't load. Check your connection and reopen the app."); return; }
+  if(!map){
+    map = L.map("map",{zoomControl:false}).setView([38.243,-85.765],12);
+    L.control.zoom({position:"bottomright"}).addTo(map);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19, attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+    for(const pid in PLACES){
+      const p = PLACES[pid];
+      pins[pid] = L.marker([p.lat,p.lng],{icon:pinIcon(pid), title:p.name}).addTo(map).bindPopup(()=>popupHtml(pid));
+    }
+    map.fitBounds(Object.values(PLACES).map(p=>[p.lat,p.lng]),{padding:[40,40]});
+    map.on("dragstart",()=>{ following = false; });
+  }
+  setTimeout(()=>map.invalidateSize(),50);
+}
+
+function showOnMap(pid){
+  go("map");
+  setTimeout(()=>{ if(!map) return; const p = PLACES[pid]; map.setView([p.lat,p.lng],16); pins[pid].openPopup(); },120);
+}
+
+/* ---- live GPS ---- */
+function toggleLocate(){
+  if(watchId !== null){
+    if(myPos && map){ following = true; map.setView([myPos.lat,myPos.lng], Math.max(map.getZoom(),15)); }
+    return;
+  }
+  startLocate();
+}
+function startLocate(){
+  if(!navigator.geolocation){ locDenied = true; mapMsg("This device or browser doesn't offer location."); return; }
+  mapMsg("Finding you…");
+  following = true; locDenied = false;
+  watchId = navigator.geolocation.watchPosition(onPos, onPosErr, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
+}
+function onPos(pos){
+  const first = !myPos;
+  myPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
+  $("locBtn").classList.add("on"); $("locBtn").textContent = "◎ Tracking";
+  mapMsg("");
+  if(map){
+    const ll = [myPos.lat,myPos.lng];
+    if(!me){
+      me = L.marker(ll,{icon:L.divIcon({className:"", iconSize:[18,18], iconAnchor:[9,9], html:'<div class="me"></div>'}), zIndexOffset:1000, title:"You are here"}).addTo(map);
+      meRing = L.circle(ll,{radius:pos.coords.accuracy, color:"#2F7DE1", weight:1, fillOpacity:.08}).addTo(map);
+    }else{ me.setLatLng(ll); meRing.setLatLng(ll).setRadius(pos.coords.accuracy); }
+    if(following && !routeTo) map.setView(ll, first ? 15 : map.getZoom());
+  }
+  if(first && routeTo) drawRoute();
+  if(first && view === "list" && listFilter === "near") render();
+}
+function onPosErr(err){
+  if(watchId !== null){ navigator.geolocation.clearWatch(watchId); watchId = null; }
+  $("locBtn").classList.remove("on"); $("locBtn").textContent = "◎ Find me";
+  locDenied = true; if(view === "list" && listFilter === "near") render();
+  mapMsg(err.code === 1
+    ? "Location is turned off for this site. Allow it in your browser settings to see where you are — or just use Open in Google Maps."
+    : "Couldn't get your location just now. Step outside or try again in a moment.");
+}
+
+function goNearest(){
+  const open = Object.keys(PLACES).filter(pid=>stopsAt(pid).some(i=>!state.done[i]));
+  if(!open.length){ mapMsg("Every place on the map is found. Well hunted."); return; }
+  if(!myPos){ mapMsg("Tap “Find me” first, and I'll point you to the nearest stop."); if(watchId===null) startLocate(); return; }
+  open.sort((a,b)=>haversine(myPos,PLACES[a])-haversine(myPos,PLACES[b]));
+  showOnMap(open[0]);
+}
+
+/* ---- directions ---- */
+function gmapsUrl(p){
+  const dest = p.nav === "coords" ? p.lat+","+p.lng : p.addr;
+  return "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(dest) + "&travelmode=" + routeMode;
+}
+function startRoute(pid){
+  routeTo = pid;
+  if(view !== "map") go("map");
+  setTimeout(()=>{ if(map) map.closePopup(); drawSheet("Finding your route…"); if(myPos) drawRoute(); else { if(watchId===null) startLocate(); drawSheet("Waiting for your location… You can also open Google Maps below."); } },120);
+}
+function setMode(m){ routeMode = m; drawSheet("Finding your route…"); if(myPos) drawRoute(); }
+function closeRoute(){ routeTo = null; routeReq++; if(routeLine){ routeLine.remove(); routeLine = null; } $("sheet").classList.add("hidden"); }
+function drawSheet(summary, steps){
+  const p = PLACES[routeTo], sh = $("sheet");
+  sh.classList.remove("hidden");
+  sh.innerHTML = `
+    <div class="sheet-head">
+      <div><div class="sheet-title">${p.name}</div><div class="sheet-sub">${p.addr}</div></div>
+      <button class="x-btn" aria-label="Close directions" onclick="closeRoute()">×</button>
+    </div>
+    <div class="modes">
+      <button class="mode ${routeMode==='driving'?'on':''}" onclick="setMode('driving')">🚗 Drive</button>
+      <button class="mode ${routeMode==='walking'?'on':''}" onclick="setMode('walking')">🚶 Walk</button>
+    </div>
+    <div class="route-sum">${summary||""}</div>
+    ${steps && steps.length ? `<ol class="steps">${steps.map(s=>`<li><span>${s.text}</span><span>${s.dist}</span></li>`).join("")}</ol>` : ""}
+    <a class="gmaps" href="${gmapsUrl(p)}" target="_blank" rel="noopener">Open in Google Maps ↗</a>`;
+}
+function stepText(st){
+  const m = st.maneuver, road = st.name ? " onto " + esc(st.name) : "", mod = m.modifier ? m.modifier.replace("uturn","U-turn") : "";
+  switch(m.type){
+    case "depart": return "Head out" + (st.name ? " on " + esc(st.name) : "");
+    case "arrive": return "Arrive at your stop";
+    case "turn": return "Turn " + mod + road;
+    case "new name": case "continue": return "Continue" + (mod && mod!=="straight" ? " " + mod : "") + road;
+    case "merge": return "Merge" + road;
+    case "on ramp": return "Take the ramp" + road;
+    case "off ramp": return "Take the exit" + road;
+    case "fork": return "Keep " + mod + road;
+    case "end of road": return "At the end of the road, turn " + mod + road;
+    case "roundabout": case "rotary": return "Take the roundabout" + road;
+    default: return (mod ? "Go " + mod : "Continue") + road;
+  }
+}
+async function drawRoute(){
+  if(!routeTo || !myPos || !map) return;
+  const p = PLACES[routeTo], req = ++routeReq, mode = routeMode;
+  const profile = mode === "walking" ? "routed-foot" : "routed-car";
+  const url = `https://routing.openstreetmap.de/${profile}/route/v1/driving/${myPos.lng},${myPos.lat};${p.lng},${p.lat}?overview=full&geometries=geojson&steps=true`;
+  try{
+    const r = await fetch(url); const j = await r.json();
+    if(req !== routeReq) return;
+    if(!j.routes || !j.routes.length) throw new Error("no route");
+    const rt = j.routes[0];
+    if(routeLine) routeLine.remove();
+    routeLine = L.geoJSON(rt.geometry,{style:{color: mode==="walking" ? "#8A6D3B" : "#1B3B45", weight:6, opacity:.85, dashArray: mode==="walking" ? "2 10" : null, lineCap:"round"}}).addTo(map);
+    map.fitBounds(routeLine.getBounds(),{paddingTopLeft:[30,80], paddingBottomRight:[30, Math.round(map.getSize().y*0.5)]});
+    const steps = rt.legs[0].steps.filter(s=>s.distance>0 || s.maneuver.type==="arrive").map(s=>({text:stepText(s), dist:s.distance ? miles(s.distance) : ""}));
+    drawSheet(`${mode==="walking"?"Walk":"Drive"} · ${miles(rt.distance)} · about ${mins(rt.duration)}`, steps);
+  }catch(e){
+    if(req !== routeReq) return;
+    if(routeLine){ routeLine.remove(); routeLine = null; }
+    drawSheet(`About ${miles(haversine(myPos,p))} away as the crow flies. The in-app route isn't available right now — Google Maps will take you there.`);
+  }
+}
+
+render();
+</script>
+</body>
+</html>
